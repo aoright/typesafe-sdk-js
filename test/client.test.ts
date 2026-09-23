@@ -102,6 +102,32 @@ describe("TypeSafeClient configuration", () => {
     expect(() => new TypeSafeClient()).toThrow(ENV.apiKey);
   });
 
+  it("rejects empty or whitespace-only apiKey at construction", () => {
+    expect(() => new TypeSafeClient({ apiKey: "" })).toThrow(TypeSafeError);
+    expect(() => new TypeSafeClient({ apiKey: "" })).toThrow(ENV.apiKey);
+    expect(() => new TypeSafeClient({ apiKey: "   " })).toThrow(TypeSafeError);
+    expect(() => new TypeSafeClient({ apiKey: "   " })).toThrow(ENV.apiKey);
+  });
+
+  it("trims surrounding whitespace and newlines from a valid apiKey", async () => {
+    await expect(sentApiKey({ apiKey: "  code-key  \n" })).resolves.toBe("code-key");
+  });
+
+  it("rejects apiKey with internal newlines, control characters, or spaces without echoing the key", () => {
+    expect(() => new TypeSafeClient({ apiKey: "ts_live_SECRET\nKEY" })).toThrow(TypeSafeError);
+    expect(() => new TypeSafeClient({ apiKey: "ts_live_SECRET\nKEY" })).toThrow(
+      "API key must contain only printable ASCII characters without whitespace.",
+    );
+    expect(() => new TypeSafeClient({ apiKey: "ts_live_SECRET\nKEY" })).not.toThrow("SECRET");
+
+    expect(() => new TypeSafeClient({ apiKey: "ts_live_SECRET KEY" })).toThrow(
+      "API key must contain only printable ASCII characters without whitespace.",
+    );
+    expect(() => new TypeSafeClient({ apiKey: "ts_live_SECRET\tKEY" })).toThrow(
+      "API key must contain only printable ASCII characters without whitespace.",
+    );
+  });
+
   it("strips trailing slashes from baseURL from either source", () => {
     process.env[ENV.baseURL] = "https://example.test///";
     expect(new TypeSafeClient({ apiKey: "k" }).baseURL).toBe("https://example.test");
@@ -256,6 +282,33 @@ describe("requests", () => {
     expect(err).toBeInstanceOf(APIConnectionError);
     expect((err as APIConnectionError).cause).toBe(boom);
     expect((err as Error).message).toContain("fetch failed");
+  });
+
+  it("fails fast with TypeSafeError on invalid request headers without retrying", async () => {
+    let attempts = 0;
+    const { fetch } = mockFetch(() => {
+      attempts++;
+      return json({ models: [] });
+    });
+    const client = new TypeSafeClient({
+      apiKey: "k",
+      fetch,
+      defaultHeaders: { "X-Invalid": "val\nue" },
+      retry: { maxRetries: 2 },
+    });
+    await expect(client.models.list()).rejects.toThrow(TypeSafeError);
+    expect(attempts).toBe(0);
+  });
+
+  it("redacts authorization bearer tokens from connection error messages", async () => {
+    const { fetch } = mockFetch(() => {
+      throw new Error('Connection dropped: "Bearer ts_live_SECRET123" header rejected');
+    });
+    const client = new TypeSafeClient({ apiKey: "k", fetch, retry: { maxRetries: 0 } });
+    const err = await client.models.list().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(APIConnectionError);
+    expect((err as APIConnectionError).message).toContain("Bearer [REDACTED]");
+    expect((err as APIConnectionError).message).not.toContain("SECRET123");
   });
 });
 

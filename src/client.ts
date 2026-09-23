@@ -45,11 +45,31 @@ export const DEFAULT_MODEL = "jev-latest";
 // Construction-time checks
 // ---------------------------------------------------------------------------
 
-const missingApiKey = (): never => {
+function missingApiKey(): never {
   throw new TypeSafeError(
     `No API key was provided. Pass \`apiKey\` to the TypeSafeClient constructor or set the ${ENV.apiKey} environment variable.`,
   );
+}
+
+const resolveAndValidateApiKey = (fromCode: string | undefined): string => {
+  const raw = fromCode ?? readEnv(ENV.apiKey);
+  const key = raw?.trim();
+  if (!key) {
+    missingApiKey();
+  }
+  if (!/^[\x21-\x7E]+$/.test(key)) {
+    throw new TypeSafeError(
+      "API key must contain only printable ASCII characters without whitespace.",
+    );
+  }
+  return key;
 };
+
+/** Redact authorization tokens or bearer secrets from error strings to prevent credential leaks. */
+const sanitizeErrorMessage = (message: string): string =>
+  message
+    .replace(/"Bearer[^"]*"/gi, '"Bearer [REDACTED]"')
+    .replace(/Bearer\s+[^\s,;"']+/gi, "Bearer [REDACTED]");
 
 const missingFetch = (): never => {
   throw new TypeSafeError(
@@ -267,7 +287,7 @@ export class TypeSafeClient {
   constructor(config: TypeSafeClientConfig = {}) {
     if (isBrowser() && !config.dangerouslyAllowBrowser) refuseBrowser();
 
-    this.#apiKey = fromCodeOrEnv(config.apiKey, ENV.apiKey) ?? missingApiKey();
+    this.#apiKey = resolveAndValidateApiKey(config.apiKey);
     this.baseURL = stripTrailingSlashes(
       fromCodeOrEnv(config.baseURL, ENV.baseURL) ?? DEFAULT_BASE_URL,
     );
@@ -359,6 +379,15 @@ export class TypeSafeClient {
       "Content-Type": req.body === undefined ? undefined : "application/json",
       "X-TypeSafe-Retry-Count": undefined,
     });
+    if (typeof Headers === "function") {
+      try {
+        new Headers(headers);
+      } catch (err) {
+        const sanitized =
+          err instanceof Error ? sanitizeErrorMessage(err.message) : "Invalid request header.";
+        throw new TypeSafeError(`Header validation failed: ${sanitized}`, { cause: err });
+      }
+    }
     const body = req.body === undefined ? undefined : JSON.stringify(req.body);
 
     for (let attempt = 0; ; attempt++) {
@@ -437,10 +466,11 @@ export class TypeSafeClient {
         throw new APITimeoutError(timeout, { cause: err });
       }
       this.logger.info(`${tag} connection error after ${elapsed()}`, err);
-      throw new APIConnectionError(
-        err instanceof Error ? `Connection error: ${err.message}` : undefined,
-        { cause: err },
-      );
+      const rawMessage = err instanceof Error ? err.message : "";
+      const sanitized = sanitizeErrorMessage(rawMessage);
+      throw new APIConnectionError(sanitized ? `Connection error: ${sanitized}` : undefined, {
+        cause: err,
+      });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abortFromCaller);
