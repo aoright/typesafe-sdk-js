@@ -74,10 +74,18 @@ const assertNonNegativeInteger = (name: string, value: number): number => {
   return value;
 };
 
+/** Maximum delay supported by Node.js and browser 32-bit signed timer APIs (2^31 - 1 ms, ~24.8 days). */
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 const assertPositiveMs = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value <= 0) {
     throw new TypeSafeError(
       `\`${name}\` must be a positive number of milliseconds, got ${String(value)}.`,
+    );
+  }
+  if (value > MAX_TIMEOUT_MS) {
+    throw new TypeSafeError(
+      `\`${name}\` cannot exceed ${MAX_TIMEOUT_MS}ms (got ${String(value)}ms). Higher values overflow runtime 32-bit signed timers.`,
     );
   }
   return value;
@@ -87,6 +95,11 @@ const assertNonNegativeMs = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value < 0) {
     throw new TypeSafeError(
       `\`${name}\` must be a non-negative number of milliseconds, got ${String(value)}.`,
+    );
+  }
+  if (value > MAX_TIMEOUT_MS) {
+    throw new TypeSafeError(
+      `\`${name}\` cannot exceed ${MAX_TIMEOUT_MS}ms (got ${String(value)}ms). Higher values overflow runtime 32-bit signed timers.`,
     );
   }
   return value;

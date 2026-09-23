@@ -50,6 +50,27 @@ describe("TypeSafeClient configuration", () => {
     expect(client.timeout).toBe(DEFAULT_TIMEOUT_MS);
   });
 
+  it("enforces the runtime 32-bit signed timer limit for timeouts", () => {
+    const max = 2_147_483_647;
+    expect(new TypeSafeClient({ apiKey: "k", timeout: max }).timeout).toBe(max);
+
+    expect(() => new TypeSafeClient({ apiKey: "k", timeout: max + 1 })).toThrow(TypeSafeError);
+    expect(() => new TypeSafeClient({ apiKey: "k", timeout: max + 1 })).toThrow("2147483647ms");
+  });
+
+  it("rejects retry policy delays exceeding the 32-bit timer maximum", () => {
+    const max = 2_147_483_647;
+    expect(() => new TypeSafeClient({ apiKey: "k", retry: { backoffInitialMs: max + 1 } })).toThrow(
+      TypeSafeError,
+    );
+    expect(() => new TypeSafeClient({ apiKey: "k", retry: { backoffMaxMs: max + 1 } })).toThrow(
+      TypeSafeError,
+    );
+    expect(() => new TypeSafeClient({ apiKey: "k", retry: { maxRetryAfterMs: max + 1 } })).toThrow(
+      TypeSafeError,
+    );
+  });
+
   it("reads every setting from the environment", async () => {
     process.env[ENV.apiKey] = "env-key";
     process.env[ENV.baseURL] = "https://env.test";
@@ -256,6 +277,13 @@ describe("requests", () => {
     expect(err).toBeInstanceOf(APIConnectionError);
     expect((err as APIConnectionError).cause).toBe(boom);
     expect((err as Error).message).toContain("fetch failed");
+  });
+
+  it("rejects per-request timeout exceeding the 32-bit timer maximum", () => {
+    const { fetch } = mockFetch(() => json({ models: [] }));
+    const client = new TypeSafeClient({ apiKey: "k", fetch });
+    expect(() => client.models.list({ timeout: 2_147_483_648 })).toThrow(TypeSafeError);
+    expect(() => client.models.list({ timeout: 2_147_483_648 })).toThrow("2147483647ms");
   });
 });
 
