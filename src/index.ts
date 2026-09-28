@@ -10,6 +10,8 @@ export {
   BadRequestError,
   InternalServerError,
   NotFoundError,
+  PayloadTooLargeError,
+  PaymentRequiredError,
   PermissionDeniedError,
   RateLimitError,
   TypeSafeError,

@@ -54,6 +54,8 @@ export const EXPECTED_VALUE_EXPORTS: string[] = [
   "InternalServerError",
   "LOG_LEVELS",
   "NotFoundError",
+  "PayloadTooLargeError",
+  "PaymentRequiredError",
   "PermissionDeniedError",
   "RateLimitError",
   "TypeSafeClient",

@@ -69,8 +69,10 @@ export class APIError extends TypeSafeError {
   static fromResponse(status: number, body: unknown, headers: Headers): APIError {
     if (status === 400) return new BadRequestError(status, body, headers);
     if (status === 401) return new AuthenticationError(status, body, headers);
+    if (status === 402) return new PaymentRequiredError(status, body, headers);
     if (status === 403) return new PermissionDeniedError(status, body, headers);
     if (status === 404) return new NotFoundError(status, body, headers);
+    if (status === 413) return new PayloadTooLargeError(status, body, headers);
     if (status === 422) return new UnprocessableEntityError(status, body, headers);
     if (status === 429) return new RateLimitError(status, body, headers);
     if (status >= 500) return new InternalServerError(status, body, headers);
@@ -82,10 +84,14 @@ export class APIError extends TypeSafeError {
 export class BadRequestError extends APIError {}
 /** HTTP 401: authentication failed. */
 export class AuthenticationError extends APIError {}
+/** HTTP 402: payment required. */
+export class PaymentRequiredError extends APIError {}
 /** HTTP 403: access is denied. */
 export class PermissionDeniedError extends APIError {}
 /** HTTP 404: the resource was not found. */
 export class NotFoundError extends APIError {}
+/** HTTP 413: request payload too large. */
+export class PayloadTooLargeError extends APIError {}
 /** HTTP 422: request validation failed. */
 export class UnprocessableEntityError extends APIError {}
 /** HTTP 429: the rate limit was exceeded. */
