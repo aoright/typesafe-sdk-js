@@ -129,6 +129,8 @@ export interface Usage {
   readonly input_tokens: number;
   /** Number of output tokens used. */
   readonly output_tokens: number;
+  /** Optional number of input tokens served from cache. */
+  readonly cached_tokens?: number;
 }
 
 /** Answers keyed by question name, with model and usage metadata. */

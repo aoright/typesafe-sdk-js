@@ -98,6 +98,8 @@ describe("systemOne result inference", () => {
     r.answers.a.noul = 1;
     // @ts-expect-error readonly
     r.usage.input_tokens = 0;
+    // @ts-expect-error readonly
+    r.usage.cached_tokens = 0;
     const models = await client.models.list();
     // @ts-expect-error readonly
     models[0].name = "other";

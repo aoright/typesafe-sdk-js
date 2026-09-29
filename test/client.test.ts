@@ -424,4 +424,19 @@ describe("1.0 primitive contract", () => {
     await client.systemOne({ state: "s", questions: { q: noul("?") } });
     expect(requests[1]?.body).not.toHaveProperty("future_option");
   });
+
+  it("exposes cached_tokens on usage when reported", async () => {
+    const { fetch } = mockFetch(() =>
+      json({
+        ...SYSTEM_ONE_RESPONSE,
+        usage: { input_tokens: 100, output_tokens: 5, cached_tokens: 88 },
+      }),
+    );
+    const client = new TypeSafeClient({ apiKey: "k", fetch });
+    const result = await client.systemOne({ state: "s", questions: { q: noul("?") } });
+    expect(result.usage.input_tokens).toBe(100);
+    expect(result.usage.output_tokens).toBe(5);
+    expect(result.usage.cached_tokens).toBe(88);
+  });
 });
+
